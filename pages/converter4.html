@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to WebP Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary: #4a6bff;
+            --secondary: #f5f7ff;
+            --text: #333;
+            --light-text: #666;
+            --border: #ddd;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        /* ... (CSS is unchanged, so it's snipped for brevity) ... */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f9f9f9; color: var(--text); line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        header { text-align: center; margin-bottom: 2rem; }
+        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; color: var(--primary); }
+        .subtitle { color: var(--light-text); font-size: 1.1rem; }
+        .upload-area { background-color: white; border-radius: 12px; padding: 2rem; box-shadow: var(--shadow); margin-bottom: 2rem; text-align: center; border: 2px dashed var(--border); transition: all 0.3s ease; position: relative; }
+        .upload-area.active { border-color: var(--primary); background-color: var(--secondary); }
+        #drag-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(74, 107, 255, 0.1); z-index: 9999; display: none; pointer-events: none; }
+        .upload-area h2 { margin-bottom: 1rem; font-size: 1.5rem; }
+        .upload-area p { color: var(--light-text); margin-bottom: 1.5rem; }
+        .upload-options { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .btn { padding: 0.8rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 0.5rem; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: #3a5bef; transform: translateY(-2px); }
+        .btn-secondary { background-color: var(--secondary); color: var(--primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background-color: #e0e5ff; }
+        .url-input { display: flex; gap: 0.5rem; width: 100%; max-width: 600px; margin: 0 auto; }
+        .url-input input { flex: 1; padding: 0.8rem 1rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
+        .url-input button { white-space: nowrap; }
+        #fileInput { display: none; }
+        .results { display: none; background-color: white; border-radius: 12px; padding: 2rem; box-shadow: var(--shadow); }
+        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .results-title { font-size: 1.5rem; }
+        .bulk-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.5rem; }
+        .image-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; transition: all 0.3s ease; display: flex; flex-direction: column; }
+        .image-card:hover { transform: translateY(-5px); box-shadow: var(--shadow); }
+        .image-preview { width: 100%; height: 200px; object-fit: cover; background-color: #f0f0f0; }
+        .image-info { padding: 1rem; display: flex; flex-direction: column; flex-grow: 1; }
+        .image-name { font-weight: 600; margin-bottom: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .image-size { color: var(--light-text); font-size: 0.9rem; margin-bottom: 1rem; }
+        .image-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: auto; }
+        .image-actions .copy-url-btn { grid-column: 1 / -1; }
+        .image-actions .btn { padding: 0.5rem; font-size: 0.9rem; flex: 1; justify-content: center; }
+        .loading { display: none; text-align: center; padding: 2rem; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(0, 0, 0, 0.1); border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite; margin: 0 auto 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .toast { position: fixed; bottom: 20px; right: 20px; background-color: #333; color: white; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: var(--shadow); transform: translateY(150%); opacity: 0; transition: all 0.4s cubic-bezier(0.21, 1.05, 0.58, 1); z-index: 1000; max-width: 320px; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        @media (max-width: 768px) { .container { padding: 1rem; } .upload-options { flex-direction: column; } .url-input { flex-direction: column; } .image-grid { grid-template-columns: 1fr; } .results-header { flex-direction: column; align-items: flex-start; } .toast { left: 20px; right: 20px; width: auto; } }
+    </style>
+</head>
+<body>
+    <div id="drag-overlay"></div>
+    <div class="container">
+        <header>
+            <h1>Image to WebP Converter</h1>
+            <p class="subtitle">Convert local files, clipboard images, or even extract all images from a web page</p>
+        </header>
+
+        <div class="upload-area" id="dropArea">
+            <h2>Upload Your Images</h2>
+            <p>Drag & drop anywhere, paste from clipboard, select files, or fetch from a URL</p>
+            
+            <div class="upload-options">
+                <button class="btn btn-primary" id="selectFilesBtn">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/></svg>
+                    Select Files
+                </button>
+                <button class="btn btn-secondary" id="pasteBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2.5 2.5 0 0 1 2.5 2.5V4h-5v-.5A2.5 2.5 0 0 1 8 1zm3.5 3v-.5a3.5 3.5 0 1 0-7 0V4H1v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4h-3.5zM2 5h12v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z"/></svg>
+                    Paste Image
+                </button>
+            </div>
+            
+            <div class="url-input">
+                <input type="text" id="imageUrl" placeholder="Enter image or page URL...">
+                <button class="btn btn-primary" id="addUrlBtn">Fetch from URL</button>
+            </div>
+            
+            <input type="file" id="fileInput" accept="image/*" multiple>
+        </div>
+
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner"></div>
+            <p id="loadingText">Converting images...</p>
+        </div>
+
+        <div class="results" id="resultsSection">
+            <div class="results-header">
+                <h3 class="results-title">Converted Images</h3>
+                <div class="bulk-actions">
+                    <button class="btn btn-secondary" id="copyAllHtmlBtn">Copy as HTML</button>
+                    <button class="btn btn-secondary" id="copyAllUrlsBtn">Copy All URLs</button>
+                    <button class="btn btn-primary" id="downloadAllBtn">Download All (.zip)</button>
+                </div>
+            </div>
+            
+            <div class="image-grid" id="imageGrid">
+                <!-- Image cards will be added here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const dropArea = document.getElementById('dropArea');
+            const dragOverlay = document.getElementById('drag-overlay');
+            const fileInput = document.getElementById('fileInput');
+            const selectFilesBtn = document.getElementById('selectFilesBtn');
+            const pasteBtn = document.getElementById('pasteBtn');
+            const imageUrlInput = document.getElementById('imageUrl');
+            const addUrlBtn = document.getElementById('addUrlBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const loadingText = document.getElementById('loadingText');
+            const resultsSection = document.getElementById('resultsSection');
+            const imageGrid = document.getElementById('imageGrid');
+            const downloadAllBtn = document.getElementById('downloadAllBtn');
+            const copyAllUrlsBtn = document.getElementById('copyAllUrlsBtn');
+            const copyAllHtmlBtn = document.getElementById('copyAllHtmlBtn');
+            const toast = document.getElementById('toast');
+
+            let convertedImages = [];
+
+            // --- Event Listeners ---
+            selectFilesBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+            pasteBtn.addEventListener('click', handlePaste);
+            addUrlBtn.addEventListener('click', handleUrlInput);
+            imageUrlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleUrlInput();
+            });
+            downloadAllBtn.addEventListener('click', downloadAllImagesAsZip);
+            copyAllUrlsBtn.addEventListener('click', copyAllUrls);
+            copyAllHtmlBtn.addEventListener('click', copyAllAsHtml);
+            imageGrid.addEventListener('click', handleCardActions);
+            
+            // --- Global Drag and Drop (Unchanged) ---
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => document.addEventListener(eventName, preventDefaults, false));
+            function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+            document.addEventListener('dragenter', () => { dropArea.classList.add('active'); dragOverlay.style.display = 'block'; });
+            document.addEventListener('dragleave', (e) => { if (e.relatedTarget === null) unhighlight(); });
+            document.addEventListener('drop', (e) => { unhighlight(); handleFiles(e.dataTransfer.files); });
+            function unhighlight() { dropArea.classList.remove('active'); dragOverlay.style.display = 'none'; }
+
+            // --- Handlers (Unchanged section) ---
+            async function handlePaste() { /* ... unchanged ... */ 
+                try {
+                    const clipboardItems = await navigator.clipboard.read();
+                    for (const item of clipboardItems) {
+                        const imageType = item.types.find(type => type.startsWith('image/'));
+                        if (imageType) {
+                            const blob = await item.getType(imageType);
+                            const file = new File([blob], 'pasted-image.' + imageType.split('/')[1], { type: imageType });
+                            handleFiles([file]);
+                            showToast('Pasted image added for conversion.');
+                            return;
+                        }
+                    }
+                    showToast('No image found in clipboard.');
+                } catch (err) {
+                    console.error('Clipboard API error:', err);
+                    showToast('Failed to access clipboard. This feature requires browser permission.');
+                }
+            }
+            async function handleUrlInput() { /* ... unchanged ... */ 
+                const url = imageUrlInput.value.trim();
+                if (!url) {
+                    showToast('Please enter a valid URL.');
+                    return;
+                }
+                
+                showLoading(true, "Fetching from URL...");
+                const isDirectImageUrl = /\.(jpg|jpeg|png|gif|bmp|svg|webp)$/i.test(url);
+                
+                try {
+                    if (isDirectImageUrl) {
+                        const response = await fetchWithProxy(url);
+                        const blob = await response.blob();
+                        const contentType = response.headers.get('content-type');
+
+                        if (!contentType || !contentType.startsWith('image/')) {
+                            throw new Error('URL does not point to a valid image.');
+                        }
+                        const filename = url.split('/').pop().split('?')[0] || 'image_from_url';
+                        await handleFiles([new File([blob], filename, { type: contentType })]);
+                    } else {
+                        await extractImagesFromPage(url);
+                    }
+                    imageUrlInput.value = '';
+                } catch (error) {
+                    console.error('URL processing error:', error);
+                    showToast(`Error: ${error.message}`);
+                } finally {
+                    showLoading(false);
+                }
+            }
+            async function extractImagesFromPage(pageUrl) { /* ... unchanged ... */ 
+                showLoading(true, "Scanning page for images...");
+                try {
+                    const response = await fetchWithProxy(pageUrl);
+                    const htmlText = await response.text();
+
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlText, 'text/html');
+                    const imageElements = doc.querySelectorAll('img');
+                    
+                    if (imageElements.length === 0) {
+                        showToast('No <img> tags found on the provided page.');
+                        return;
+                    }
+
+                    showToast(`Found ${imageElements.length} images. Fetching...`);
+                    
+                    const fetchPromises = Array.from(imageElements)
+                        .map(img => img.src)
+                        .filter(Boolean)
+                        .map(src => {
+                            const absoluteUrl = new URL(src, pageUrl).href;
+                            return fetchWithProxy(absoluteUrl)
+                                .then(res => res.blob())
+                                .then(blob => {
+                                    if (blob.type.startsWith('image/')) {
+                                        const filename = absoluteUrl.split('/').pop().split(/[?#]/)[0] || 'scraped-image';
+                                        return new File([blob], filename, { type: blob.type });
+                                    }
+                                    return null;
+                                })
+                                .catch(() => null);
+                        });
+                    
+                    const files = (await Promise.all(fetchPromises)).filter(Boolean);
+
+                    if (files.length > 0) {
+                        await handleFiles(files);
+                    } else {
+                        showToast("Could not fetch any valid images from the page.");
+                    }
+                } catch(error) {
+                    showToast('Failed to fetch or parse the page.');
+                    console.error(error);
+                }
+            }
+            function fetchWithProxy(url) { /* ... unchanged ... */ 
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                return fetch(proxyUrl);
+            }
+
+            async function handleFiles(files) {
+                if (files.length === 0) return;
+                showLoading(true, 'Converting images...');
+                
+                const imageFiles = Array.from(files).filter(file => file.type && file.type.startsWith('image/'));
+                if (imageFiles.length === 0) {
+                    showToast('No valid image files were provided.');
+                    showLoading(false);
+                    return;
+                }
+                
+                const conversionPromises = imageFiles.map(file => 
+                    convertToWebP(file)
+                        .then(webpBlob => ({
+                            original: file,
+                            webp: new File([webpBlob], `${file.name.split('.').slice(0, -1).join('.')}.webp`, { type: 'image/webp' }),
+                            url: URL.createObjectURL(webpBlob)
+                        }))
+                        .catch(error => {
+                            console.error(`Error converting ${file.name}:`, error);
+                            showToast(`Could not convert ${file.name}.`);
+                            return null;
+                        })
+                );
+
+                const newImages = (await Promise.all(conversionPromises)).filter(Boolean);
+                
+                if (newImages.length > 0) {
+                    convertedImages.push(...newImages);
+                    updateResults();
+                    resultsSection.style.display = 'block';
+                    showToast(`Successfully converted ${newImages.length} image(s).`);
+                }
+                showLoading(false);
+            }
+
+            // --- Core Logic & UI Updates ---
+            function convertToWebP(file) { /* ... unchanged ... */ 
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = e => {
+                        const img = new Image();
+                        img.src = e.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+                            canvas.toBlob(blob => {
+                                if (blob) resolve(blob);
+                                else reject(new Error('Canvas to Blob conversion failed.'));
+                            }, 'image/webp', 0.8);
+                        };
+                        img.onerror = reject;
+                    };
+                    reader.onerror = reject;
+                });
+            }
+
+            function updateResults() {
+                imageGrid.innerHTML = '';
+                convertedImages.forEach((image, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'image-card';
+                    card.innerHTML = `
+                        <img src="${image.url}" alt="${image.webp.name}" class="image-preview" loading="lazy">
+                        <div class="image-info">
+                            <div class="image-name" title="${image.webp.name}">${image.webp.name}</div>
+                            <div class="image-size">
+                                ${formatFileSize(image.original.size)} &rarr; <b>${formatFileSize(image.webp.size)}</b>
+                            </div>
+                            <div class="image-actions">
+                                <button class="btn btn-primary download-btn" data-index="${index}">Download</button>
+                                <button class="btn btn-secondary copy-image-btn" data-index="${index}">Copy Image</button>
+                                <button class="btn btn-secondary copy-url-btn" data-index="${index}">Copy URL</button>
+                            </div>
+                        </div>`;
+                    imageGrid.appendChild(card);
+                });
+            }
+
+            function handleCardActions(e) {
+                const button = e.target.closest('button');
+                if (!button) return;
+                const index = button.dataset.index;
+                if (button.classList.contains('download-btn')) downloadImage(index);
+                if (button.classList.contains('copy-image-btn')) copyImageAsDataUrl(index);
+                if (button.classList.contains('copy-url-btn')) copySingleUrl(index);
+            }
+
+            function downloadImage(index) {
+                const image = convertedImages[index];
+                const a = document.createElement('a');
+                a.href = image.url;
+                a.download = image.webp.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showToast(`Downloading ${image.webp.name}`);
+            }
+
+            // NEW: Helper to convert a blob to a Data URL
+            function getBlobAsDataURL(blob) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            }
+
+            // UPDATED: More reliable image copy
+            async function copyImageAsDataUrl(index) {
+                try {
+                    const image = convertedImages[index];
+                    const blob = await (await fetch(image.url)).blob();
+                    const dataUrl = await getBlobAsDataURL(blob);
+                    await navigator.clipboard.writeText(dataUrl);
+                    showToast('Image (as Data URL) copied to clipboard.');
+                } catch (error) {
+                    console.error('Failed to copy image:', error);
+                    showToast('Copy failed. Your browser may block this action in incognito or on local files.', 5000);
+                }
+            }
+            
+            function copySingleUrl(index) {
+                const image = convertedImages[index];
+                navigator.clipboard.writeText(image.url)
+                    .then(() => showToast('Blob URL copied to clipboard.'))
+                    .catch(() => showToast('Copy failed. Your browser may block this action in incognito or on local files.', 5000));
+            }
+            
+            async function downloadAllImagesAsZip() { /* ... unchanged ... */ 
+                if (convertedImages.length === 0) { showToast('No images to download.'); return; }
+                showLoading(true, "Creating ZIP file...");
+                try {
+                    const zip = new JSZip();
+                    const blobs = await Promise.all(convertedImages.map(img => fetch(img.url).then(res => res.blob())));
+                    blobs.forEach((blob, i) => zip.file(convertedImages[i].webp.name, blob));
+                    
+                    const content = await zip.generateAsync({ type: 'blob' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(content);
+                    a.download = 'converted-images.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(a.href);
+                    showToast('ZIP file download started.');
+                } catch(error) {
+                    console.error("Error creating ZIP:", error);
+                    showToast("Failed to create ZIP file.");
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            function copyAllUrls() {
+                if (convertedImages.length === 0) { showToast('No image URLs to copy.'); return; }
+                const urls = convertedImages.map(img => img.url).join('\n');
+                navigator.clipboard.writeText(urls)
+                    .then(() => showToast(`Copied ${convertedImages.length} Blob URLs.`))
+                    .catch(() => showToast('Copy failed. Your browser may block this action in incognito or on local files.', 5000));
+            }
+
+            // NEW: Copy all images as an HTML string
+            async function copyAllAsHtml() {
+                if (convertedImages.length === 0) { showToast('No images to copy.'); return; }
+                
+                showLoading(true, 'Generating HTML...');
+                try {
+                    const dataUrlPromises = convertedImages.map(async (image) => {
+                        const blob = await (await fetch(image.url)).blob();
+                        const dataUrl = await getBlobAsDataURL(blob);
+                        return `<img src="${dataUrl}" alt="${image.webp.name}" />`;
+                    });
+
+                    const htmlSnippets = await Promise.all(dataUrlPromises);
+                    const finalHtml = htmlSnippets.join('\n');
+
+                    await navigator.clipboard.writeText(finalHtml);
+                    showToast(`Copied ${convertedImages.length} images as HTML.`);
+
+                } catch (error) {
+                     console.error('Failed to copy as HTML:', error);
+                     showToast('Copy failed. Your browser may block this action in incognito or on local files.', 5000);
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            // --- Utility Functions ---
+            function formatFileSize(bytes) { /* ... unchanged ... */ if (bytes === 0) return '0 Bytes'; const k = 1024; const sizes = ['Bytes', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]; }
+            function showLoading(show, text = 'Converting images...') { loadingText.textContent = text; loadingIndicator.style.display = show ? 'block' : 'none'; }
+            let toastTimer;
+            function showToast(message, duration = 3000) { clearTimeout(toastTimer); toast.textContent = message; toast.classList.add('show'); toastTimer = setTimeout(() => { toast.classList.remove('show'); }, duration); }
+        });
+    </script>
+</body>
+</html>
