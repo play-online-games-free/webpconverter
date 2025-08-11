@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to WebP Converter</title>
+    <style>
+        :root {
+            --primary: #4a6bff;
+            --secondary: #f5f7ff;
+            --text: #333;
+            --light-text: #666;
+            --border: #ddd;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f9f9f9;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        .subtitle {
+            color: var(--light-text);
+            font-size: 1.1rem;
+        }
+
+        .upload-area {
+            background-color: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+            text-align: center;
+            border: 2px dashed var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .upload-area.active {
+            border-color: var(--primary);
+            background-color: var(--secondary);
+        }
+
+        .upload-area h2 {
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .upload-area p {
+            color: var(--light-text);
+            margin-bottom: 1.5rem;
+        }
+
+        .upload-options {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #3a5bef;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary);
+            color: var(--primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background-color: #e0e5ff;
+        }
+
+        .url-input {
+            display: flex;
+            gap: 0.5rem;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .url-input input {
+            flex: 1;
+            padding: 0.8rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .url-input button {
+            white-space: nowrap;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .results {
+            display: none;
+            background-color: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .results-title {
+            font-size: 1.5rem;
+        }
+
+        .bulk-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .image-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .image-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow);
+        }
+
+        .image-preview {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .image-info {
+            padding: 1rem;
+        }
+
+        .image-name {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .image-size {
+            color: var(--light-text);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .image-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .image-actions .btn {
+            padding: 0.5rem;
+            font-size: 0.9rem;
+            flex: 1;
+            justify-content: center;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #333;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .upload-options {
+                flex-direction: column;
+            }
+            
+            .url-input {
+                flex-direction: column;
+            }
+            
+            .image-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Image to WebP Converter</h1>
+            <p class="subtitle">Convert your images to WebP format for better web performance</p>
+        </header>
+
+        <div class="upload-area" id="dropArea">
+            <h2>Upload Your Images</h2>
+            <p>Drag & drop images here, paste from clipboard, upload files, or add by URL</p>
+            
+            <div class="upload-options">
+                <button class="btn btn-primary" id="selectFilesBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                        <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+                    </svg>
+                    Select Files
+                </button>
+                <button class="btn btn-secondary" id="pasteBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 1a2.5 2.5 0 0 1 2.5 2.5V4h-5v-.5A2.5 2.5 0 0 1 8 1zm3.5 3v-.5a3.5 3.5 0 1 0-7 0V4H1v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4h-3.5zM2 5h12v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z"/>
+                    </svg>
+                    Paste Image
+                </button>
+            </div>
+            
+            <div class="url-input">
+                <input type="text" id="imageUrl" placeholder="Enter image URL or webpage link...">
+                <button class="btn btn-primary" id="addUrlBtn">Add</button>
+            </div>
+            
+            <input type="file" id="fileInput" accept="image/*" multiple>
+        </div>
+
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner"></div>
+            <p id="loadingText">Converting images to WebP...</p>
+        </div>
+
+        <div class="results" id="resultsSection">
+            <div class="results-header">
+                <h3 class="results-title">Converted Images</h3>
+                <div class="bulk-actions">
+                    <button class="btn btn-secondary" id="copyAllBtn">Copy All</button>
+                    <button class="btn btn-secondary" id="downloadAllBtn">Download All</button>
+                    <button class="btn btn-secondary" id="copyAllUrlsBtn">Copy URLs</button>
+                </div>
+            </div>
+            
+            <div class="image-grid" id="imageGrid">
+                <!-- Images will be added here dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const dropArea = document.getElementById('dropArea');
+            const fileInput = document.getElementById('fileInput');
+            const selectFilesBtn = document.getElementById('selectFilesBtn');
+            const pasteBtn = document.getElementById('pasteBtn');
+            const imageUrl = document.getElementById('imageUrl');
+            const addUrlBtn = document.getElementById('addUrlBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const loadingText = document.getElementById('loadingText');
+            const resultsSection = document.getElementById('resultsSection');
+            const imageGrid = document.getElementById('imageGrid');
+            const copyAllBtn = document.getElementById('copyAllBtn');
+            const downloadAllBtn = document.getElementById('downloadAllBtn');
+            const copyAllUrlsBtn = document.getElementById('copyAllUrlsBtn');
+            const toast = document.getElementById('toast');
+
+            // Store converted images
+            let convertedImages = [];
+            
+            // Event Listeners
+            selectFilesBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+            pasteBtn.addEventListener('click', handlePaste);
+            addUrlBtn.addEventListener('click', handleUrlUpload);
+            imageUrl.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleUrlUpload();
+            });
+            copyAllBtn.addEventListener('click', copyAllImages);
+            downloadAllBtn.addEventListener('click', downloadAllImages);
+            copyAllUrlsBtn.addEventListener('click', copyAllUrls);
+            
+            // Drag and drop events
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            function highlight() {
+                dropArea.classList.add('active');
+            }
+            
+            function unhighlight() {
+                dropArea.classList.remove('active');
+            }
+            
+            dropArea.addEventListener('drop', handleDrop, false);
+            
+            // Handle dropped files
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFiles(files);
+            }
+            
+            // Handle selected files
+            function handleFileSelect(e) {
+                const files = e.target.files;
+                handleFiles(files);
+            }
+            
+            // Handle paste
+            async function handlePaste() {
+                try {
+                    const clipboardItems = await navigator.clipboard.read();
+                    for (const clipboardItem of clipboardItems) {
+                        for (const type of clipboardItem.types) {
+                            if (type.startsWith('image/')) {
+                                const blob = await clipboardItem.getType(type);
+                                const file = new File([blob], 'pasted-image.' + type.split('/')[1], { type });
+                                handleFiles([file]);
+                                showToast('Pasted image added for conversion');
+                                return;
+                            }
+                        }
+                    }
+                    showToast('No image found in clipboard');
+                } catch (err) {
+                    console.error('Failed to read clipboard:', err);
+                    showToast('Failed to access clipboard. Please try the upload option.');
+                }
+            }
+            
+            // Handle URL upload - now supports both direct image URLs and webpage URLs
+            async function handleUrlUpload() {
+                const url = imageUrl.value.trim();
+                if (!url) {
+                    showToast('Please enter a valid URL');
+                    return;
+                }
+                
+                // Check if it's a direct image URL
+                if (isImageUrl(url)) {
+                    await fetchAndConvertImage(url);
+                } else {
+                    // Assume it's a webpage URL and try to extract images
+                    await extractImagesFromWebpage(url);
+                }
+                
+                imageUrl.value = '';
+            }
+            
+            // Check if URL points directly to an image
+            function isImageUrl(url) {
+                return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
+            }
+            
+            // Fetch and convert a single image from URL
+            async function fetchAndConvertImage(url) {
+                try {
+                    showLoading(true, 'Fetching image...');
+                    
+                    // Add CORS proxy to avoid CORS issues (for demonstration only)
+                    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                    const response = await fetch(proxyUrl + url, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    
+                    if (!response.ok) throw new Error('Failed to fetch image');
+                    
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.startsWith('image/')) {
+                        throw new Error('URL does not point to an image');
+                    }
+                    
+                    const blob = await response.blob();
+                    const filename = url.split('/').pop() || 'image';
+                    const file = new File([blob], filename, { type: contentType });
+                    
+                    await handleFiles([file]);
+                    showToast('Image URL added for conversion');
+                } catch (error) {
+                    console.error('Error fetching image from URL:', error);
+                    showToast('Failed to load image from URL. Please check the URL and try again.');
+                } finally {
+                    showLoading(false);
+                }
+            }
+            
+            // Extract images from a webpage URL
+            async function extractImagesFromWebpage(url) {
+                try {
+                    showLoading(true, 'Extracting images from webpage...');
+                    
+                    // Use a CORS proxy and serverless function to fetch page HTML
+                    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                    const response = await fetch(proxyUrl);
+                    
+                    if (!response.ok) throw new Error('Failed to fetch webpage');
+                    
+                    const data = await response.json();
+                    const html = data.contents;
+                    
+                    if (!html) throw new Error('No content received from webpage');
+                    
+                    // Parse HTML to extract image URLs
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const images = doc.querySelectorAll('img');
+                    
+                    if (images.length === 0) {
+                        showToast('No images found on this webpage');
+                        return;
+                    }
+                    
+                    showLoading(true, `Found ${images.length} images, processing...`);
+                    
+                    // Process each image
+                    let processedCount = 0;
+                    const imageUrls = Array.from(images).map(img => {
+                        let src = img.src;
+                        
+                        // Handle relative URLs
+                        if (src.startsWith('/')) {
+                            const domain = new URL(url).origin;
+                            src = domain + src;
+                        } else if (src.startsWith('http') === false) {
+                            src = url + '/' + src;
+                        }
+                        
+                        return src;
+                    }).filter(src => isImageUrl(src)); // Filter to only image URLs
+                    
+                    // Process images in batches to avoid overwhelming the browser
+                    const batchSize = 5;
+                    for (let i = 0; i < imageUrls.length; i += batchSize) {
+                        const batch = imageUrls.slice(i, i + batchSize);
+                        await Promise.all(batch.map(imgUrl => fetchAndConvertImage(imgUrl).catch(e => {
+                            console.error(`Error processing image ${imgUrl}:`, e);
+                        })));
+                        
+                        processedCount += batch.length;
+                        showLoading(true, `Processing images (${processedCount}/${imageUrls.length})...`);
+                    }
+                    
+                    showToast(`Processed ${processedCount} images from webpage`);
+                } catch (error) {
+                    console.error('Error extracting images from webpage:', error);
+                    showToast('Failed to extract images from webpage. Please check the URL and try again.');
+                } finally {
+                    showLoading(false);
+                }
+            }
+            
+            // Process files
+            async function handleFiles(files) {
+                showLoading(true, 'Converting images to WebP...');
+                
+                try {
+                    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                    
+                    if (imageFiles.length === 0) {
+                        showToast('No valid image files found');
+                        return;
+                    }
+                    
+                    for (const file of imageFiles) {
+                        try {
+                            const webpBlob = await convertToWebP(file);
+                            const webpFile = new File([webpBlob], `${file.name.split('.')[0]}.webp`, { type: 'image/webp' });
+                            
+                            convertedImages.push({
+                                original: file,
+                                webp: webpFile,
+                                url: URL.createObjectURL(webpBlob)
+                            });
+                        } catch (error) {
+                            console.error(`Error converting ${file.name}:`, error);
+                        }
+                    }
+                    
+                    if (convertedImages.length > 0) {
+                        updateResults();
+                        resultsSection.style.display = 'block';
+                        showToast(`Successfully converted ${convertedImages.length} image(s) to WebP`);
+                    }
+                } finally {
+                    showLoading(false);
+                }
+            }
+            
+            // Convert image to WebP
+            function convertToWebP(file) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    const reader = new FileReader();
+                    
+                    reader.onload = (e) => {
+                        img.src = e.target.result;
+                    };
+                    
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                    
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                resolve(blob);
+                            } else {
+                                reject(new Error('Canvas to Blob conversion failed'));
+                            }
+                        }, 'image/webp', 0.8);
+                    };
+                    
+                    img.onerror = reject;
+                });
+            }
+            
+            // Update results grid
+            function updateResults() {
+                imageGrid.innerHTML = '';
+                
+                convertedImages.forEach((image, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'image-card';
+                    
+                    card.innerHTML = `
+                        <img src="${image.url}" alt="${image.webp.name}" class="image-preview">
+                        <div class="image-info">
+                            <div class="image-name">${image.webp.name}</div>
+                            <div class="image-size">${formatFileSize(image.webp.size)}</div>
+                            <div class="image-actions">
+                                <button class="btn btn-primary download-btn" data-index="${index}">Download</button>
+                                <button class="btn btn-secondary copy-btn" data-index="${index}">Copy</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    imageGrid.appendChild(card);
+                });
+                
+                // Add event listeners to new buttons
+                document.querySelectorAll('.download-btn').forEach(btn => {
+                    btn.addEventListener('click', () => downloadImage(btn.dataset.index));
+                });
+                
+                document.querySelectorAll('.copy-btn').forEach(btn => {
+                    btn.addEventListener('click', () => copyImage(btn.dataset.index));
+                });
+            }
+            
+            // Download single image
+            function downloadImage(index) {
+                const image = convertedImages[index];
+                const a = document.createElement('a');
+                a.href = image.url;
+                a.download = image.webp.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                showToast('Download started');
+            }
+            
+            // Copy single image to clipboard
+            async function copyImage(index) {
+                try {
+                    const image = convertedImages[index];
+                    const response = await fetch(image.url);
+                    const blob = await response.blob();
+                    
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            [blob.type]: blob
+                        })
+                    ]);
+                    
+                    showToast('Image copied to clipboard');
+                } catch (error) {
+                    console.error('Failed to copy image:', error);
+                    showToast('Failed to copy image to clipboard');
+                }
+            }
+            
+            // Copy all images to clipboard
+            async function copyAllImages() {
+                if (convertedImages.length === 0) {
+                    showToast('No images to copy');
+                    return;
+                }
+                
+                try {
+                    const items = [];
+                    
+                    for (const image of convertedImages) {
+                        const response = await fetch(image.url);
+                        const blob = await response.blob();
+                        items.push(new ClipboardItem({ [blob.type]: blob }));
+                    }
+                    
+                    await navigator.clipboard.write(items);
+                    showToast(`Copied ${convertedImages.length} images to clipboard`);
+                } catch (error) {
+                    console.error('Failed to copy all images:', error);
+                    showToast('Failed to copy images to clipboard');
+                }
+            }
+            
+            // Download all images as ZIP
+            function downloadAllImages() {
+                if (convertedImages.length === 0) {
+                    showToast('No images to download');
+                    return;
+                }
+                
+                if (convertedImages.length === 1) {
+                    downloadImage(0);
+                    return;
+                }
+                
+                // For multiple files, we would ideally create a ZIP
+                // In this simple implementation, we'll download them one by one
+                showToast(`Starting download of ${convertedImages.length} files...`);
+                
+                convertedImages.forEach((image, i) => {
+                    setTimeout(() => {
+                        const a = document.createElement('a');
+                        a.href = image.url;
+                        a.download = image.webp.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    }, i * 300);
+                });
+            }
+            
+            // Copy all image URLs
+            function copyAllUrls() {
+                if (convertedImages.length === 0) {
+                    showToast('No image URLs to copy');
+                    return;
+                }
+                
+                const urls = convertedImages.map(img => img.url).join('\n');
+                navigator.clipboard.writeText(urls)
+                    .then(() => showToast(`Copied ${convertedImages.length} image URLs to clipboard`))
+                    .catch(() => showToast('Failed to copy URLs to clipboard'));
+            }
+            
+            // Format file size
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            // Show loading indicator
+            function showLoading(show, message = '') {
+                loadingIndicator.style.display = show ? 'block' : 'none';
+                if (message) loadingText.textContent = message;
+            }
+            
+            // Show toast notification
+            function showToast(message) {
+                toast.textContent = message;
+                toast.classList.add('show');
+                
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
