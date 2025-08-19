@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern WebP Converter</title>
+    
+    <!-- Google Fonts for a modern look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- JSZip library is required for zipping multiple files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        /* --- NEW MODERN DARK THEME CSS --- */
+        :root {
+            --background-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-color: #00aaff;
+            --primary-hover: #0088cc;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --border-color: #333333;
+            --success-color: #4caf50;
+            --error-color: #f44336;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            margin: 0 0 0.5rem 0;
+            background: linear-gradient(90deg, var(--primary-color), #a0a0a0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        header p {
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        #drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: var(--surface-color);
+            margin-bottom: 1.5rem;
+        }
+        #drop-zone.drag-over {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 20px rgba(0, 170, 255, 0.2);
+            transform: scale(1.02);
+        }
+        .drop-zone-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            pointer-events: none; /* Make content unclickable so drop-zone gets the click */
+        }
+        .drop-zone-content svg { color: var(--primary-color); }
+        .drop-zone-content p { margin: 0; }
+        #browse-btn {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-weight: 500;
+        }
+        #browse-btn:hover { background-color: var(--primary-hover); }
+
+        .separator {
+            text-align: center;
+            margin: 2rem 0;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        #url-fetch-container {
+            display: flex;
+            gap: 1rem;
+        }
+        #url-input {
+            flex-grow: 1;
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        #fetch-btn {
+            background-color: transparent;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        #fetch-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        #output-controls {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        #output-controls.hidden { display: none; }
+        #output-controls button {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #output-controls button:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        #clear-all-btn { border-color: var(--error-color); color: var(--error-color); }
+        #clear-all-btn:hover { background-color: var(--error-color); color: white; }
+
+        #image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .image-card {
+            background: rgba(30, 30, 30, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .image-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        
+        .image-preview-container {
+            width: 100%;
+            height: 200px;
+            background-color: #2a2a2a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .image-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid var(--text-secondary);
+            border-bottom-color: var(--primary-color);
+            border-radius: 50%;
+            display: inline-block;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .card-content { padding: 1rem; }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .filename {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 10px;
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-color);
+            cursor: pointer;
+        }
+        .file-info {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1rem;
+        }
+        .size-saved { color: var(--success-color); font-weight: bold; }
+        .card-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        .card-actions button {
+            width: 100%;
+            padding: 0.6rem 0.5rem;
+            font-size: 0.9rem;
+            border: 1px solid var(--border-color);
+            background-color: var(--surface-color);
+            color: var(--text-primary);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .card-actions button:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            animation: slideIn 0.3s ease-out, fadeOut 0.5s ease-in 2.5s forwards;
+        }
+        .toast.success { background-color: var(--success-color); }
+        .toast.error { background-color: var(--error-color); }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            #url-fetch-container { flex-direction: column; }
+            .container { padding: 1rem; }
+            header h1 { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Modern WebP Converter</h1>
+            <p>Drag, paste, upload, or fetch any image. It will be instantly converted to the lightweight WebP format right in your browser.</p>
+        </header>
+
+        <main>
+            <div id="input-section">
+                <input type="file" id="file-input" multiple accept="image/*" hidden>
+                <div id="drop-zone">
+                    <div class="drop-zone-content">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <p><strong>Drag & Drop</strong>, <strong>Paste</strong>, or <button type="button" id="browse-btn">Browse Files</button></p>
+                        <p class="small-text" style="color:var(--text-secondary)">Your files are processed on your device and never uploaded.</p>
+                    </div>
+                </div>
+                <div class="separator">OR</div>
+                <div id="url-fetch-container">
+                    <input type="url" id="url-input" placeholder="Paste an image URL to fetch and convert">
+                    <button id="fetch-btn">Fetch Image</button>
+                </div>
+            </div>
+
+            <div id="output-section">
+                <div id="output-controls" class="hidden">
+                    <button id="download-selected-btn">Download Selected (.zip)</button>
+                    <button id="clear-all-btn">Clear All</button>
+                </div>
+                <div id="image-grid">
+                    <!-- Converted images will be dynamically added here -->
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <div id="toast-container"></div>
+    
+<script>
+    /* --- JAVASCRIPT LOGIC (with Webpage Image Scraping) --- */
+    document.addEventListener('DOMContentLoaded', () => {
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const urlInput = document.getElementById('url-input');
+        const fetchBtn = document.getElementById('fetch-btn');
+        const imageGrid = document.getElementById('image-grid');
+        const outputControls = document.getElementById('output-controls');
+        const downloadSelectedBtn = document.getElementById('download-selected-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
+        const toastContainer = document.getElementById('toast-container');
+        
+        // --- MINIMUM IMAGE SIZE (to filter out icons/spacers) ---
+        const MIN_IMAGE_WIDTH = 100;
+        const MIN_IMAGE_HEIGHT = 100;
+
+        // --- UTILITY FUNCTIONS ---
+        const formatBytes = (bytes, decimals = 2) => {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        };
+
+        const showToast = (message, type = 'success') => {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        };
+
+        // --- CORE LOGIC ---
+        async function fetchWithProxies(url) {
+            const PROXIES = [ 'https://corsproxy.io/?', 'https://api.allorigins.win/raw?url=' ];
+            let lastError = null;
+            for (const proxy of PROXIES) {
+                try {
+                    const response = await fetch(proxy + encodeURIComponent(url));
+                    if (!response.ok) throw new Error(`Proxy error: ${response.status}`);
+                    return response;
+                } catch (error) {
+                    console.warn(`Proxy failed: ${proxy}`, error);
+                    lastError = error;
+                }
+            }
+            throw lastError || new Error('All proxies failed to fetch the URL.');
+        }
+
+        const convertToWebP = (imageFile) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(imageFile);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        if (img.width < MIN_IMAGE_WIDTH || img.height < MIN_IMAGE_HEIGHT) {
+                            return reject(new Error('Image is too small'));
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        canvas.getContext('2d').drawImage(img, 0, 0);
+                        canvas.toBlob((blob) => {
+                            if (!blob) return reject(new Error('Canvas conversion failed.'));
+                            const originalName = imageFile.name.substring(0, imageFile.name.lastIndexOf('.'));
+                            resolve({
+                                url: URL.createObjectURL(blob),
+                                name: `${originalName || 'image'}.webp`,
+                                originalSize: imageFile.size,
+                                newSize: blob.size,
+                            });
+                        }, 'image/webp', 0.9);
+                    };
+                    img.onerror = () => reject(new Error('Image loading failed.'));
+                };
+                reader.onerror = () => reject(new Error('File reading failed.'));
+            });
+        };
+
+        async function scrapeImagesFromUrl(pageUrl) {
+            const response = await fetchWithProxies(pageUrl);
+            const html = await response.text();
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const images = doc.querySelectorAll('img');
+            const imageUrls = new Set(); // Use a Set to avoid duplicates
+
+            images.forEach(img => {
+                let src = img.getAttribute('src');
+                if (src && !src.startsWith('data:')) { // Ignore inline data URIs
+                    try {
+                        // Create an absolute URL from a relative one
+                        const absoluteUrl = new URL(src, pageUrl).href;
+                        imageUrls.add(absoluteUrl);
+                    } catch (e) {
+                        console.warn(`Invalid image URL found: ${src}`);
+                    }
+                }
+            });
+
+            return Array.from(imageUrls);
+        }
+
+        // --- UI UPDATE LOGIC ---
+        const createPlaceholderCard = (fileName) => {
+            const card = document.createElement('div');
+            card.className = 'image-card';
+            card.innerHTML = `<div class="image-preview-container"><div class="loader"></div></div><div class="card-content"><div class="card-header"><span class="filename" title="${fileName}">${fileName}</span></div><div class="file-info"><span>Processing...</span></div></div>`;
+            imageGrid.appendChild(card);
+            return card;
+        };
+
+        const updateCardWithResult = (card, result) => {
+            const { url, name, originalSize, newSize } = result;
+            const sizeSaving = originalSize > 0 ? ((originalSize - newSize) / originalSize * 100).toFixed(1) : 0;
+            card.innerHTML = `<div class="image-preview-container"><img src="${url}" alt="${name}" class="image-preview"></div><div class="card-content"><div class="card-header"><span class="filename" title="${name}">${name}</span><input type="checkbox" class="image-checkbox"></div><div class="file-info"><span>${formatBytes(originalSize)} → ${formatBytes(newSize)}</span><span class="size-saved">${sizeSaving > 0 ? `▼ ${sizeSaving}%` : ''}</span></div><div class="card-actions"><a href="${url}" download="${name}" class="download-btn"><button type="button">Download</button></a><button type="button" class="copy-url-btn" data-url="${url}">Copy URL</button></div></div>`;
+        };
+
+        // This function now processes a File object
+        const processFile = (file) => {
+            const placeholderCard = createPlaceholderCard(file.name);
+            return convertToWebP(file)
+                .then(result => {
+                    updateCardWithResult(placeholderCard, result);
+                    return { status: 'fulfilled' };
+                })
+                .catch(error => {
+                    console.error(`Failed to convert ${file.name}:`, error.message);
+                    placeholderCard.remove(); // Remove placeholder on failure
+                    // We return a 'rejected' status for counting purposes
+                    return { status: 'rejected', reason: error.message }; 
+                });
+        };
+
+        const processFiles = (files) => {
+            const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            if (imageFiles.length === 0) {
+                showToast('No valid image files found.', 'error');
+                return;
+            }
+            outputControls.classList.remove('hidden');
+            Promise.all(imageFiles.map(processFile)).then(results => {
+                const successCount = results.filter(r => r.status === 'fulfilled').length;
+                if(successCount > 0) {
+                    showToast(`Successfully converted ${successCount} image(s)!`, 'success');
+                }
+            });
+        };
+
+        // --- EVENT HANDLERS ---
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => document.body.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }));
+        ['dragenter', 'dragover'].forEach(eventName => document.body.addEventListener(eventName, () => dropZone.classList.add('drag-over')));
+        ['dragleave', 'drop'].forEach(eventName => document.body.addEventListener(eventName, () => dropZone.classList.remove('drag-over')));
+        document.body.addEventListener('drop', (e) => processFiles(e.dataTransfer.files));
+        window.addEventListener('paste', e => processFiles(Array.from(e.clipboardData.items).filter(item => item.type.startsWith('image/')).map(item => item.getAsFile())));
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => { processFiles(fileInput.files); fileInput.value = ''; });
+
+        fetchBtn.addEventListener('click', async () => {
+            const pageUrl = urlInput.value.trim();
+            if (!pageUrl) {
+                showToast('Please enter a webpage URL.', 'error');
+                return;
+            }
+
+            fetchBtn.disabled = true;
+            fetchBtn.textContent = 'Scraping...';
+            showToast('Scraping webpage for images...', 'success');
+
+            try {
+                const imageUrls = await scrapeImagesFromUrl(pageUrl);
+                if (imageUrls.length === 0) {
+                    showToast('No suitable images found on that page.', 'error');
+                    return;
+                }
+                
+                showToast(`Found ${imageUrls.length} images. Now fetching & converting...`, 'success');
+                outputControls.classList.remove('hidden');
+
+                const processingPromises = imageUrls.map(async (url) => {
+                    try {
+                        const response = await fetchWithProxies(url);
+                        const blob = await response.blob();
+                        const filename = url.substring(url.lastIndexOf('/') + 1) || 'scraped-image.jpg';
+                        const file = new File([blob], filename, { type: blob.type });
+                        return processFile(file);
+                    } catch (error) {
+                        console.error(`Failed to fetch image ${url}:`, error);
+                        return { status: 'rejected', reason: error.message };
+                    }
+                });
+                
+                // Wait for all processing to finish
+                const results = await Promise.all(processingPromises);
+                const successCount = results.filter(r => r.status === 'fulfilled').length;
+                if (successCount > 0) {
+                     showToast(`Finished! Converted ${successCount} out of ${imageUrls.length} found images.`, 'success');
+                } else {
+                     showToast(`Could not convert any of the images found on the page.`, 'error');
+                }
+
+            } catch (error) {
+                console.error('Scraping failed:', error);
+                showToast(error.message, 'error');
+            } finally {
+                fetchBtn.disabled = false;
+                fetchBtn.textContent = 'Fetch Image';
+                urlInput.value = '';
+            }
+        });
+
+        imageGrid.addEventListener('click', e => {
+            if (e.target.classList.contains('copy-url-btn')) {
+                navigator.clipboard.writeText(e.target.dataset.url).then(() => {
+                    e.target.textContent = 'Copied!';
+                    setTimeout(() => e.target.textContent = 'Copy URL', 2000);
+                });
+            }
+        });
+
+        downloadSelectedBtn.addEventListener('click', () => {
+            const checkboxes = imageGrid.querySelectorAll('.image-checkbox:checked');
+            if (checkboxes.length === 0) return showToast('Please select images to download.', 'error');
+            
+            const zip = new JSZip();
+            const promises = Array.from(checkboxes).map(cb => {
+                const link = cb.closest('.image-card').querySelector('.download-btn');
+                return fetch(link.href).then(res => res.blob()).then(blob => zip.file(link.download, blob));
+            });
+            Promise.all(promises).then(() => {
+                zip.generateAsync({ type: "blob" }).then(content => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(content);
+                    link.download = "webp_images.zip";
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                });
+            });
+        });
+
+        clearAllBtn.addEventListener('click', () => {
+            if (imageGrid.children.length > 0 && confirm('Clear all converted images?')) {
+                imageGrid.innerHTML = '';
+                outputControls.classList.add('hidden');
+            }
+        });
+    });
+</script>
+</body>
+</html>
