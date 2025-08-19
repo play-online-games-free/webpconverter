@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Any Image to WebP Converter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- CSS STYLES --- */
+        :root {
+            --primary-color: #4a90e2;
+            --primary-hover: #357abd;
+            --background-color: #f4f7f6;
+            --card-background: #ffffff;
+            --text-color: #333;
+            --border-color: #d1d5db;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        header {
+            text-align: center;
+            padding: 2rem 1rem;
+            background-color: var(--card-background);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        header h1 {
+            margin: 0;
+            color: var(--primary-color);
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        #input-section {
+            margin-bottom: 2rem;
+        }
+
+        #drop-zone {
+            border: 3px dashed var(--border-color);
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #drop-zone.drag-over {
+            border-color: var(--primary-color);
+            background-color: #e9f2fc;
+        }
+
+        .drop-zone-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .drop-zone-content svg {
+            color: var(--primary-color);
+        }
+
+        .drop-zone-content p {
+            margin: 0;
+        }
+
+        button, input[type="url"], input[type="text"] {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            border-color: var(--primary-color);
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        .separator {
+            text-align: center;
+            margin: 1.5rem 0;
+            font-weight: 600;
+            color: #999;
+        }
+
+        #url-fetch-container {
+            display: flex;
+            gap: 1rem;
+        }
+
+        #url-input {
+            flex-grow: 1;
+        }
+
+        #status-message {
+            text-align: center;
+            margin-top: 1rem;
+            font-weight: 600;
+            height: 24px; /* Reserve space to prevent layout shifts */
+        }
+
+        #status-message.success { color: var(--success-color); }
+        #status-message.error { color: var(--error-color); }
+
+        #output-controls {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        #output-controls.hidden {
+            display: none;
+        }
+
+        #clear-all-btn {
+            background-color: var(--error-color);
+            border-color: var(--error-color);
+        }
+        #clear-all-btn:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+        }
+
+
+        #image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .image-card {
+            background-color: var(--card-background);
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .image-preview {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background-color: #eee;
+        }
+
+        .card-content {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-header .filename {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 10px;
+        }
+
+        .card-header input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .card-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        .card-actions button {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            body {
+                font-size: 14px;
+            }
+            #image-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            }
+        }
+
+        @media (max-width: 480px) {
+            #url-fetch-container {
+                flex-direction: column;
+            }
+            #image-grid {
+                grid-template-columns: 1fr;
+            }
+            .card-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Any Image to WebP Converter</h1>
+        <p>Drag, Paste, Upload, or Fetch any image to convert it to WebP instantly.</p>
+    </header>
+
+    <main>
+        <div id="input-section">
+            <!-- This hidden input is used for the "Click to Upload" functionality -->
+            <input type="file" id="file-input" multiple accept="image/*" hidden>
+
+            <div id="drop-zone">
+                <div class="drop-zone-content">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <p><strong>Drag & Drop</strong> files here</p>
+                    <p>or <strong>Paste</strong> an image anywhere</p>
+                    <button type="button" id="browse-btn">Browse Files</button>
+                </div>
+            </div>
+
+            <div class="separator">OR</div>
+
+            <div id="url-fetch-container">
+                <input type="url" id="url-input" placeholder="Paste an image URL to fetch">
+                <button id="fetch-btn">Fetch Image</button>
+            </div>
+             <div id="status-message"></div>
+        </div>
+
+        <div id="output-section">
+            <div id="output-controls" class="hidden">
+                 <button id="download-selected-btn">Download Selected (.zip)</button>
+                 <button id="clear-all-btn">Clear All</button>
+            </div>
+            <div id="image-grid">
+                <!-- Converted images will be dynamically added here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- JSZip library is required for zipping multiple files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <script>
+        /* --- JAVASCRIPT LOGIC --- */
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const browseBtn = document.getElementById('browse-btn');
+            const urlInput = document.getElementById('url-input');
+            const fetchBtn = document.getElementById('fetch-btn');
+            const imageGrid = document.getElementById('image-grid');
+            const outputControls = document.getElementById('output-controls');
+            const downloadSelectedBtn = document.getElementById('download-selected-btn');
+            const clearAllBtn = document.getElementById('clear-all-btn');
+            const statusMessage = document.getElementById('status-message');
+
+            // --- Core Conversion Logic ---
+            const convertToWebP = (imageFile) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(imageFile);
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.src = event.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+
+                            canvas.toBlob((blob) => {
+                                if (blob) {
+                                    const originalName = imageFile.name.substring(0, imageFile.name.lastIndexOf('.'));
+                                    resolve({
+                                        blob: blob,
+                                        url: URL.createObjectURL(blob),
+                                        name: `${originalName || 'image'}.webp`
+                                    });
+                                } else {
+                                    reject(new Error('Canvas to Blob conversion failed.'));
+                                }
+                            }, 'image/webp', 0.9); // Quality: 0.9 (90%)
+                        };
+                        img.onerror = (err) => reject(new Error('Image loading failed.'));
+                    };
+                    reader.onerror = (err) => reject(new Error('File reading failed.'));
+                });
+            };
+
+            // --- UI Update Logic ---
+            const displayConvertedImage = ({ url, name }) => {
+                outputControls.classList.remove('hidden');
+                const card = document.createElement('div');
+                card.className = 'image-card';
+                card.innerHTML = `
+                    <img src="${url}" alt="${name}" class="image-preview">
+                    <div class="card-content">
+                        <div class="card-header">
+                            <span class="filename" title="${name}">${name}</span>
+                            <input type="checkbox" class="image-checkbox">
+                        </div>
+                        <div class="card-actions">
+                            <a href="${url}" download="${name}" class="download-btn">
+                                <button type="button">Download</button>
+                            </a>
+                            <button type="button" class="copy-url-btn" data-url="${url}">Copy URL</button>
+                        </div>
+                    </div>
+                `;
+                imageGrid.appendChild(card);
+            };
+
+            const processFiles = (files) => {
+                if (files.length === 0) return;
+                setStatus('Processing...', 'processing');
+
+                const promises = Array.from(files)
+                    .filter(file => file.type.startsWith('image/'))
+                    .map(file => convertToWebP(file).catch(e => e)); // Catch errors to not fail all
+
+                Promise.all(promises).then(results => {
+                    let successCount = 0;
+                    results.forEach(result => {
+                        if (result instanceof Error) {
+                            console.error('Conversion Error:', result.message);
+                        } else {
+                            displayConvertedImage(result);
+                            successCount++;
+                        }
+                    });
+                    if(successCount > 0) {
+                        setStatus(`Successfully converted ${successCount} image(s)!`, 'success');
+                    } else {
+                        setStatus('Could not convert the provided file(s). Please use standard image formats.', 'error');
+                    }
+                
+                    setTimeout(() => setStatus(''), 3000); // Clear message after 3 seconds
+                });
+            };
+
+            const setStatus = (message, type = '') => {
+                statusMessage.textContent = message;
+                statusMessage.className = type;
+            };
+
+            // --- Event Handlers ---
+
+            // 1. Drag and Drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                document.body.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                document.body.addEventListener(eventName, () => dropZone.classList.add('drag-over'));
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                document.body.addEventListener(eventName, () => dropZone.classList.remove('drag-over'));
+            });
+
+            document.body.addEventListener('drop', (e) => {
+                processFiles(e.dataTransfer.files);
+            });
+
+            // 2. Paste from Clipboard
+            window.addEventListener('paste', e => {
+                const files = Array.from(e.clipboardData.items)
+                    .filter(item => item.type.startsWith('image/'))
+                    .map(item => item.getAsFile());
+                
+                if (files.length > 0) {
+                    processFiles(files);
+                }
+            });
+
+            // 3. Click to Upload
+            browseBtn.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('click', (e) => {
+                if (e.target.id === "drop-zone" || e.target.closest('.drop-zone-content')) {
+                    fileInput.click();
+                }
+            });
+            fileInput.addEventListener('change', () => {
+                processFiles(fileInput.files);
+                fileInput.value = ''; // Reset for same-file selection
+            });
+
+            // 4. Fetch from URL
+            fetchBtn.addEventListener('click', async () => {
+                const imageUrl = urlInput.value.trim();
+                if (!imageUrl) {
+                    setStatus('Please enter a valid URL.', 'error');
+                    return;
+                }
+
+                setStatus('Fetching image...', 'processing');
+                try {
+                    // NOTE: This will fail for URLs without CORS headers.
+                    // A server-side proxy is needed for arbitrary URLs.
+                    const response = await fetch(imageUrl);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const blob = await response.blob();
+                    
+                    // Create a pseudo-file to process
+                    const filename = imageUrl.substring(imageUrl.lastIndexOf('/') + 1) || 'image.jpg';
+                    const file = new File([blob], filename, { type: blob.type });
+
+                    processFiles([file]);
+                    urlInput.value = '';
+
+                } catch (error) {
+                    console.error('Fetch Error:', error);
+                    setStatus('Failed to fetch image. The server may be blocking requests (CORS issue).', 'error');
+                    setTimeout(() => setStatus(''), 5000);
+                }
+            });
+            
+            // 5. Card Actions (Download, Copy URL) - Event Delegation
+            imageGrid.addEventListener('click', e => {
+                const target = e.target;
+                if (target.classList.contains('copy-url-btn')) {
+                    const urlToCopy = target.dataset.url;
+                    navigator.clipboard.writeText(urlToCopy).then(() => {
+                        target.textContent = 'Copied!';
+                        setTimeout(() => target.textContent = 'Copy URL', 2000);
+                    });
+                }
+            });
+
+            // 6. Batch Operations
+            downloadSelectedBtn.addEventListener('click', () => {
+                const checkboxes = imageGrid.querySelectorAll('.image-checkbox:checked');
+                if (checkboxes.length === 0) {
+                    alert('Please select at least one image to download.');
+                    return;
+                }
+
+                const zip = new JSZip();
+                const promises = Array.from(checkboxes).map(checkbox => {
+                    const card = checkbox.closest('.image-card');
+                    const link = card.querySelector('.download-btn');
+                    const url = link.href;
+                    const filename = link.download;
+                    
+                    return fetch(url)
+                        .then(response => response.blob())
+                        .then(blob => {
+                            zip.file(filename, blob);
+                        });
+                });
+
+                Promise.all(promises).then(() => {
+                    zip.generateAsync({type:"blob"}).then(function(content) {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(content);
+                        link.download = "converted_images.zip";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    });
+                });
+            });
+
+            clearAllBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to clear all converted images?')) {
+                    imageGrid.innerHTML = '';
+                    outputControls.classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
